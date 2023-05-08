@@ -8,7 +8,7 @@ The basic layout of this program is based upon that of the semi-analytical frame
 We have included new profile classes for GC and the diffuse host galaxy in the density-profile module (profiles.py).
 We have implemented the Eddington's inversion method for velocity initialization, as in the initialization module (init.py).
 We have developed a self-consistent star-cluster evolution model, and implemented in the satellite-evolution module (evolve.py). 
-We inlcude the Petts et al. (2015,2016) treatment of dynamical friction the orbital evolution (with changes made in profiles.fDF)
+We inlcude the Petts et al. (2015,2016) treatment of dynamical friction for orbital evolution (with changes made in profiles.fDF)
 We provide example programs and figures in the scripts folder.
 
 For more programs, such as forward-modeling using the GC evolution model with MCMC inference of the dark-matter halo, please feel free to contact us at 
