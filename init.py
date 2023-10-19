@@ -174,13 +174,15 @@ def Mass_StarCluster(N, alpha=None, lgMmin=None, lgMmax=None):
 
 # ---for initializing orbit
 
-def orbit_StarCluster(N, profile, potential, rmin=1., rmax=100.,vmin=0.1,vmax=None):
+def orbit_StarCluster(N, profile, potential, rmin=1., rmax=100.):
     """
     Initialize the orbit of a satellite star cluster, given the profile 
     from which the star cluster's position is drawn, and total potential 
     in which the star cluster evolves. 
     
-    We assume that the star clusters velocity initialization follow Eddington Inversion
+    We assume that the star clusters is in equilibrium with the 
+    underlying potential, so the velocity can be simply the local 
+    velocity dispersion multiplied by sqrt(3)
     
     We assume isotropic distribution of position vector and velocity 
     vector, i.e., the polar angle of the position vector, theta, is
@@ -225,7 +227,7 @@ def orbit_StarCluster(N, profile, potential, rmin=1., rmax=100.,vmin=0.1,vmax=No
     #V0 = np.sqrt(3.) * pr.sigma(potential, r0)
     V0=[]
     for i in r0:
-        V0.append(DrawVelocity_Eddington_Inversion(1, potential, i,vmin,vmax)[0])
+        V0.append(DrawVelocity_Modak23_NFW(1, potential, i)[0])
     V0=np.array(V0)
     # np.random.seed(5)
     gamma = np.arccos(2. * np.random.random(N) - 1.)  # i.e., isotropy
@@ -278,26 +280,7 @@ def DrawRadius(N, profile, rmin=1., rmax=100.):
     return RadiusSampler.rvs(C=C, size=N)
 
 
-def DrawRadius_Sersic(N, n, Reff, rmin=0.1, rmax=10.):
-    """
-    Draw radii for N particles randomly according to Modak+22 model (Sersic Profile).
-
-    Syntax:
-
-        DrawRadius_Sersic(N, n, Reff, rmin=0.1, rmax=10.)
-
-    where
-
-        N: particle number (float or array)
-        n: Sersic index
-        Reff: effective radius
-        rmin: minimum radius [kpc] (float, default=1.)
-        rmax: maximum radius [kpc] (float, default=100.)
-
-    Return:
-
-        radii [kpc] （array of length N)
-    """
+def DrawRadius_Modak23(N, n, Reff, rmin=0.1, rmax=10.):
     pn = 1 - 1.188 / 2 / n + 0.22 / 4 / n ** 2
     bn = 2 * n - 1 / 3 + 0.009876 / n
     C = quad(lambda r: cfg.FourPi * r ** 2 * (r / Reff) ** pn * np.exp(-bn * (r / Reff) ** (1 / n)), rmin,
@@ -316,34 +299,28 @@ def DrawRadius_Sersic(N, n, Reff, rmin=0.1, rmax=10.):
     return RadiusSampler.rvs(C=C, Reff=Reff, size=N)
 
 
-def DrawVelocity_Eddington_Inversion(N, profile, r, vmin=0.1, vmax=None):
+def DrawVelocity_Modak23_NFW(N, profile, r, vmin=0.1, vmax=None):
     """
-    Draw total velocities for N particles at a specific radius randomly
-    according to Modak+22 model (Eddington Inversion).
+    x = np.logspace(-1, 3, 1000)
+    phi = -pr.Phi(profile, x)
+    drhodphi2 = 2 * profile.rho0 * profile.rs ** 3 * (x * (6 * x ** 2 + 4 * x * profile.rs + profile.rs ** 2) - (
+                1 - cfg.TwoPi * x ** 3 * profile.rho(x) / profile.M(x)) * x * (x + profile.rs) * (
+                                                                  3 * x + profile.rs)) / cfg.G ** 2 / profile.M(
+        x) ** 2 / (x + profile.rs) ** 4
+    f_drhodphi2=interp1d(phi, drhodphi2, fill_value="extrapolate")
 
-    Syntax:
+    def f_Edd(E):
+        inte = quad(lambda phi: f_drhodphi2(phi)/np.sqrt(E - phi), 0, E,limit=100,epsabs=1e-5,epsrel=1e-5)[0]
+        return inte / np.sqrt(8) / np.pi ** 2
 
-        DrawVelocity_Eddington_Inversion(N, profile, r, vmin=0.1, vmax=None)
-
-    where
-
-        N: particle number (float or array)
-        profile: density profile from which we draw the particle's radius
-            (profile class defined in profiles.py, or a list of such
-            objects)
-        r: the specific radius for N particles
-        vmin: minimum velocity [kpc/Gyr] (float, default=0.1)
-        rmax: maximum velocity [kpc/Gyr] (float, default=None)
-
-    Return:
-
-        radii [kpc] （array of length N)
-
-    Note:
-        This function needs one to calculate energy distribution in advance and save it in config.py
+    Elist = []
+    for i in np.linspace(0.0001, -pr.Phi(profile,r), 1000):
+        Elist.append(f_Edd(i))
+    Elist = np.array(Elist)
+    Elist[np.where(Elist < 0)] = 0
+    f_E = interp1d(np.linspace(0.0001, -pr.Phi(profile,r), 1000), Elist, fill_value=0)
     """
     if vmax==None:
-        #if none, retunr escape velocities at this radius
         vmax=np.sqrt(2*cfg.G*pr.M(profile,r)/r)
     else:
         vmax=vmax
@@ -365,30 +342,11 @@ def DrawVelocity_Eddington_Inversion(N, profile, r, vmin=0.1, vmax=None):
     return RadiusSampler.rvs(r=r, size=N)
 
 
-def orbit_StarCluster_Modak(N, potential, n, Reff, rmin=1., rmax=100.,vmin=0.1,vmax=None):
-    """
-    Initialize the orbit of star clusters based on Modak+22 model, given
-    the Sersic index, effective radius and total potential in which the
-    star cluster evolves.
-    They assume that the star clusters velocity initialization follow Eddington
-    Inversion while distance initialization follow Sersic profile
-
-    Syntax:
-
-        orbit_StarCluster_Modak(N, potential, n, Reff, rmin=1., rmax=100.,vmin=0.1,vmax=None)
-
-
-    Return:
-
-        phase-space coordinates [R,phi,z,VR,Vphi,Vz] in cylindrical frame
-        [kpc,radian,kpc,kpc/Gyr,kpc/Gyr,kpc/Gyr] (array)
-    """
-
-
+def orbit_StarCluster_Modak(N, potential, n, Reff, rmin=1., rmax=100.):
     r0 = DrawRadius_Modak23(N, n, Reff, rmin=rmin, rmax=rmax)
     V0 = []
     for i in r0:
-        V0.append(DrawVelocity_Eddington_Inversion(1, potential, i,vmin=0.1,vmax=None)[0])
+        V0.append(DrawVelocity_Modak23_NFW(1, potential, i)[0])
     V0 = np.array(V0)
     theta = np.pi * np.random.random(N)
     phi = 2. * np.pi * np.random.random(N)
@@ -414,6 +372,34 @@ def orbit_StarCluster_Modak(N, potential, n, Reff, rmin=1., rmax=100.,vmin=0.1,v
     ])
 
 
+def orbit_StarCluster_Modak2(N, potential, n, Reff, rmin=1., rmax=100.):
+    r0 = DrawRadius_Modak23(N, n, Reff, rmin=rmin, rmax=rmax)
+    V0 = []
+    for i in r0:
+        V0.append(DrawVelocity_Modak23_NFW(1, potential, i)[0])
+    V0 = np.array(V0)
+    # np.random.seed(3)
+    theta = np.arccos(2. * np.random.random(N) - 1.)  # i.e., isotropy
+    # np.random.seed(4)
+    zeta = 2. * np.pi * np.random.random(N)  # i.e., uniform azimuthal
+    # angle, zeta, of velocity vector in theta-phi-r frame
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)
+    sinzeta = np.sin(zeta)
+    coszeta = np.cos(zeta)
+    # np.random.seed(5)
+    gamma = np.arccos(2. * np.random.random(N) - 1.)  # i.e., isotropy
+    singamma = np.sin(gamma)
+    cosgamma = np.cos(gamma)
+    # np.random.seed(6)
+    return np.array([
+        r0 * sintheta,
+        np.random.random(N) * 2. * np.pi,  # uniformly random phi in (0,2pi)
+        r0 * costheta,
+        V0 * (singamma * coszeta * costheta + cosgamma * sintheta),
+        V0 * singamma * sinzeta,
+        V0 * (cosgamma * costheta - singamma * coszeta * sintheta),
+    ])
 
 
 

@@ -620,7 +620,6 @@ class Burkert_like(object):
         self.rs = self.rh / self.ch
         self.Const = 9 + 2 * np.sqrt(3) * np.pi  # Auxiliary Constant
         self.rho0 = 27 * self.Mh / cfg.FourPi / self.rs ** 3 / self.Const
-        self.Phi0 = -cfg.FourPiG*self.rho0*self.rs**2
         # self.rmax = <<< to be updated
         # self.Vmax = <<< to be updated
         # self.s001 = <<< to be updated
@@ -792,29 +791,6 @@ class Burkert_like(object):
         GM = cfg.G * self.Mh
         C = (1 + 6 * x) * np.pi + 6 * (2 * x - 1) * self.f2(x) + 3 * sqrt3 * self.f1(x)
         return -sqrt3 * GM * C / 2 / self.Const / self.rs / x
-
-    def d2Phidr2(self, R, z=0.):
-        """
-        Second radial derivative of the gravitational potential [1/Gyr^2]
-        computed at r = sqrt(R^2 + z^2).
-
-        Syntax:
-
-            .d2Phidr2(R,z=0.)
-
-        where
-
-            R: R-coordinate [kpc] (float or array)
-            z: z-coordinate [kpc] (float or array)
-                (default=0., i.e., if z is not specified otherwise, the
-                first argument R is also the halo-centric radius r)
-        """
-        r = np.sqrt(R ** 2. + z ** 2.)
-        x = r / self.rs
-
-        f = (np.sqrt(3) * np.pi + 9 * x * (2 - 3 * x ** 2 + 2 * x ** 3) / (1 + x + x ** 3 + x ** 4) - 6 * np.sqrt(
-            3) * self.f2(x) + 9 * self.f1(x))
-        return self.Phi0 / 27 / self.rs ** 2 / x ** 3 * f
 
     def fgrav(self, R, z):
         """
@@ -1243,12 +1219,12 @@ class Burkert(object):
         r = np.sqrt(R ** 2. + z ** 2.)
 
         f = 2 * r ** 3 * self.rho0 * self.rs ** 3 / cfg.G ** 2 / self.M(r) ** 3 / (r + self.rs) ** 3 / (
-                r ** 2 + self.rs ** 2) ** 3
+                    r ** 2 + self.rs ** 2) ** 3
         f1 = cfg.TwoPi * r ** 3 * self.rho0 * self.rs ** 3 * (3 * r ** 2 + 2 * r * self.rs ** 2 + self.rs ** 2)
         f2 = self.M(r) * (
-                3 * r ** 5 + 3 * r ** 4 * self.rs - 6 * r ** 2 * self.rs ** 3 - 3 * r * self.rs ** 4 - self.rs ** 5)
+                    3 * r ** 5 + 3 * r ** 4 * self.rs - 6 * r ** 2 * self.rs ** 3 - 3 * r * self.rs ** 4 - self.rs ** 5)
 
-        return f * (f1 + f2)
+        return f*(f1+f2)
 
 
 class coreNFW(object):
@@ -4653,11 +4629,6 @@ def fDF(potential, xv, satellite):
                     bmin = cfg.G * m / Vrel ** 2
                     L = bmax / bmin
                     lnL = 0.5 * np.log(L ** 2 + 1.)
-                #slope = p.s(r)
-                #bmax = min(r / slope, r)
-                #bmin = cfg.G * m / Vrel ** 2
-                #L = bmax / bmin
-                #lnL = 0.5 * np.log(L ** 2 + 1.)
         X = Vrel / (cfg.Root2 * p.sigma(R, z))
         fac_s = p.rho(R, z) * lnL * (erf(X) - \
                                      cfg.TwoOverRootPi * X * np.exp(-X ** 2.)) / Vrel ** 3

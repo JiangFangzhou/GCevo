@@ -35,15 +35,16 @@ lnL_type = 0 # indicates using log(Mh/Ms) (instantaneous)
 lnL_type = 1 # indicates using the Petts+15 Couloumb logarithm
 lnL_type = 2 # indicates using constant Couloumb logarithm of lnL_const
 lnL_type = 3 # indicates using the Bar+21/22 Couloumb logarithm
-lnL_type = 4 # indicates using the Modak+22 Couloumb logarithm
+lnL_type = 4
 bmax=0.5 # constant maximal impact parameter value for Bar+21/22
 Ntot = None # the normalization of the initial cluster mass function
 #pre-calculate velocity dispersion to speed up
 logicI=True
 I0=0
-#Halo mass
+
 Mh=1e11
-#Find Energy distribution by Eddington Inversion
+
+
 f_E=None
 
 ############################# constants #################################

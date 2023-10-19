@@ -219,7 +219,8 @@ def ltidal(sp, potential, xv, choice='King62'):
     fa = Findlt(a, sp, rhs)
     fb = Findlt(b, sp, rhs)
     if fa * fb > 0.:
-        lt = cfg.Rres
+        #lt = cfg.Rres
+        lt = sp.rh
     else:
         lt = brentq(Findlt, a, b, args=(sp, rhs),
                     rtol=1e-5, maxiter=1000)
