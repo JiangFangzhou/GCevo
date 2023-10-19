@@ -1,6 +1,6 @@
 import matplotlib
 import matplotlib.pyplot as plt
-
+import seaborn as sns
 plt.style.use(["default"])
 
 matplotlib.rc('lines', linewidth=3)
@@ -59,21 +59,18 @@ UDG_rh = np.append(UDG_1_rh, UDG_2_rh)
 UDG_Mc = UDG_Mc[np.where(UDG_Rc <= 5)]
 UDG_Rc = UDG_Rc[np.where(UDG_Rc <= 5)]
 UDG_rh = UDG_rh[np.where(UDG_Rc <= 5)]
-
 # Get three mass bin with equal width in log space from data
 binwidth = np.linspace(np.log10(UDG_Mc).min(), np.log10(UDG_Mc).max(), 4)
 
 
 ######################## set up the environment #########################
 def calculate_distance(xvlist1, xvlist2):
-    #Function to calculate distance for two GCs
     d2 = xvlist1[0] ** 2 + xvlist2[0] ** 2 - 2 * xvlist1[0] * xvlist2[0] * np.cos(xvlist1[1] - xvlist2[1]) + (
             xvlist1[2] - xvlist2[2]) ** 2
     return np.sqrt(d2)
 
 
 def calculate_vel(xvlist1, xvlist2):
-    # Function to relative velocity for two GCs
     vx1 = xvlist1[3] * np.cos(xvlist1[1]) - xvlist1[4] * np.sin(xvlist1[1])
     vx2 = xvlist2[3] * np.cos(xvlist2[1]) - xvlist2[4] * np.sin(xvlist2[1])
     vy1 = xvlist1[3] * np.sin(xvlist1[1]) + xvlist1[4] * np.cos(xvlist1[1])
@@ -83,13 +80,11 @@ def calculate_vel(xvlist1, xvlist2):
 
 
 def calculate_pot(xvlist1, xvlist2, m1, m2):
-    # Function to potential energy for two GCs based on Modak+22 approximation
     U = -cfg.G * m1 * m2 / (calculate_distance(xvlist1, xvlist2) ** 2.11 + (1.7 * 10e-3) ** 2.11) ** (1 / 2.11)
     return U
 
 
 def calculate_rhalf(rhohalf1, rhohalf2, m1, m2):
-    # Function to calculate half-mass radius for the new GC after two GCs merger
     new_rhohalf = ((m1 ** (5 / 3) * rhohalf1 ** (1 / 3) + m2 ** (5 / 3) * rhohalf2 ** (1 / 3)) / (m1 + m2) ** (
                 5 / 3)) ** 3
     rh = (3 * (m1 + m2) / cfg.FourPi / 2 / new_rhohalf) ** (1 / 3)
@@ -98,7 +93,6 @@ def calculate_rhalf(rhohalf1, rhohalf2, m1, m2):
 
 
 def newxv(xvlist1, xvlist2, m1, m2):
-    # Function to calculate phase-space coordinates for the new GC after two GCs merger
     vx1 = xvlist1[3] * np.cos(xvlist1[1]) - xvlist1[4] * np.sin(xvlist1[1])
     vx2 = xvlist2[3] * np.cos(xvlist2[1]) - xvlist2[4] * np.sin(xvlist2[1])
     vy1 = xvlist1[3] * np.sin(xvlist1[1]) + xvlist1[4] * np.cos(xvlist1[1])
@@ -153,33 +147,42 @@ cfg.lnL_type = 1  # <<< Coulomb log choice, 0 = Bar+22
 fr = 0.08
 StrippingEfficiency = 0.55  # default value (as calibrated for subhalos)
 xie = 0.0074  # default is 1/137 = 0.0074 for isolated relaxed cluster
-eta = 2.  # half of EFF outer slope
 
 
-merger=None# control if merger can happen
-if merger:
-    merger_r = []
-    merger_time = []
-    merger_mass = []
 
 
-    final_mass = []
-    final_radius = []
-    final_rh = []
+merger_r = []
+merger_time = []
+merger_mass = []
+encounter_number=[]
+
+
+
+
 
 #
 
 
+Mb = 10 ** 8.3343  # baryon mass [M_sun]
+r0 = 3.42
+#r0 = 3.79178427# [kpc] # Hernquist scale radius
+cb = 6.1650  # Burkert-like concentration
 # ---host properties
-cfg.Mh=10**9.
+cfg.Mh=10. ** 9.82
+#cfg.Mh=10. ** 9.44359124
 Mh = cfg.Mh  # halo virial mass [M_sun]
-ch = 3 # halo concentration
-h = pr.NFW(Mh, ch, Delta=200., z=0.)
+print(np.log10(Mh))
+#ch = 10**0.44588193
+ch = 22.05
+#
+h = pr.Burkert(Mh, ch, Delta=200., z=0.)
+b = pr.Hernquist(Mb, r0)
+Bur = pr.Burkert_like(Mb, cb)
 
 # ---choose the potential to study
-potential = [h]
+potential = [h,Bur]
+profile = b
 
-#calculate energy distribution for this halo
 print("Energy Distribution Calculating")
 aux_x = np.logspace(-1, 4, 3000)
 aux_profile = h
@@ -202,15 +205,26 @@ cfg.f_E = interp1d(np.linspace(0.0001, -pr.Phi(aux_profile, 0.1), 1000), Elist, 
 
 print("Energy Distribution Calculated")
 
-
-
-Ncluster = 300 #initial number of GC
 lgMmin=5.5
 lgMmax=8
+
+final_mass=[]
+final_radius=[]
+final_rh=[]
+
+
+
+eta = 2.  # half of EFF outer slope
+
+Ncluster = 300
 
 xv0 = init.orbit_StarCluster(Ncluster, b, h, rmin=0.1, rmax=5).T
 cfg.Ntot = None  # [important!] reset normalization of ICMF
 m0 = init.Mass_StarCluster(N=Ncluster, alpha=1., lgMmin=lgMmin, lgMmax=lgMmax)  # [M_sun]
+
+#xv0 = init.orbit_StarCluster_Modak2(Ncluster, h, 1.18, 0.9, rmin=1, rmax=4).T
+#mt = 10 ** np.random.normal(5, np.sqrt(0.2), Ncluster)
+#m0 = mt * np.exp(10 / 23)
 lhalf0 = init.Reff_StarCluster_WithScatter(m0)
 a0 = lhalf0 / (np.sqrt(2. ** (2. / (2 * eta - 3.)) - 1.))  # EFF scale radius
 
@@ -283,67 +297,72 @@ for i in range(Nstep):
         orbits[j] = orbit(xv)
         clusters[j] = s
 
-    if merger:
-        #turn on to allow merger happens
-        #merger model can be seen in Modak+22
-        distance_matrix = np.ones((len(clusters), len(clusters)))
-        energy_matrix = np.ones((len(clusters), len(clusters)))
-        for m in range(len(clusters)):
-            for n in range(len(clusters)):
-                if m == n:
-                    distance_matrix[m][n] = 0
-                elif calculate_distance(orbits[m].xv, orbits[n].xv) > 2 * (clusters[m].rhalf + clusters[n].rhalf):
-                    distance_matrix[m][n] = 0
-        if len(np.where(distance_matrix == 1)[0]) != 0:
-            skill1, skill2 = np.where(distance_matrix == 1)
-            for l in range(len(skill1)):
-                m = skill1[l]
-                n = skill2[l]
-                if clusters[m].Mb > cfg.Mres and clusters[m].rhalf < 0.1 and clusters[n].Mb > cfg.Mres and clusters[n].rhalf < 0.1:
-                    mu = (clusters[m].Mb * clusters[n].Mb) / (clusters[m].Mb + clusters[n].Mb)
-                    energy_matrix[m][n] = round(1 / 2 * mu * calculate_vel(orbits[m].xv, orbits[n].xv) ** 2 \
-                                                + calculate_pot(orbits[m].xv, orbits[n].xv, clusters[m].Mb, clusters[n].Mb))
-        if len(np.where(energy_matrix < 0)[0]) != 0:
-            delete_list = np.array([])
-            energy_matrix_flat = energy_matrix.flatten()
-            for m in np.unique(energy_matrix_flat[np.where(energy_matrix_flat < 0)]):
-                skill1, skill2 = np.where(energy_matrix == m)
-                if skill1[0] in delete_list or skill1[1] in delete_list:
-                    pass
-                else:
-                    print(np.where(energy_matrix == m), m, t)
-                    merger_time[-1].append(t)
-                    delete_list = np.append(delete_list, skill1)
-                    delete_list = delete_list.astype(np.int64)
-                    new_mass = clusters[skill1[0]].Mb + clusters[skill1[1]].Mb
-                    new_lhalf = calculate_rhalf(clusters[skill1[0]].rhohalf, clusters[skill1[1]].rhohalf,
-                                                clusters[skill1[0]].Mb, clusters[skill1[1]].Mb)
-                    orbits.append(orbit(newxv(orbits[skill1[0]].xv, orbits[skill1[1]].xv,
-                                              mass[-1][skill1[0]], mass[-1][skill1[1]])))
-                    merger_r[-1].append(np.sqrt(orbits[-1].xv[0] ** 2 + orbits[-1].xv[2] ** 2))
-                    merger_mass[-1].append(new_mass)
-                    clusters.append(pr.EFF(new_mass, new_lhalf / (np.sqrt(2. ** (2. / (2 * eta - 3.)) - 1.)), eta))
-                    m0=np.append(m0,new_mass)
-            orbits = list(np.delete(orbits, delete_list))
-            clusters = list(np.delete(clusters, delete_list))
-            m0=np.delete(m0,delete_list)
-
-    # ---record
+    # merger
+    """
+    distance_matrix = np.ones((len(clusters), len(clusters)))
+    energy_matrix = np.ones((len(clusters), len(clusters)))
+    for m in range(len(clusters)):
+        for n in range(len(clusters)):
+            if m == n:
+                distance_matrix[m][n] = 0
+            elif calculate_distance(orbits[m].xv, orbits[n].xv) > 2 * (clusters[m].rhalf + clusters[n].rhalf):
+                distance_matrix[m][n] = 0
+    if len(np.where(distance_matrix == 1)[0]) != 0:
+        skill1, skill2 = np.where(distance_matrix == 1)
+        for l in range(len(skill1)):
+            encounter_number[-1]=encounter_number[-1]+1
+            m = skill1[l]
+            n = skill2[l]
+            if clusters[m].Mb > cfg.Mres and clusters[m].rhalf < 0.1 and clusters[n].Mb > cfg.Mres and clusters[n].rhalf < 0.1:
+                mu = (clusters[m].Mb * clusters[n].Mb) / (clusters[m].Mb + clusters[n].Mb)
+                energy_matrix[m][n] = round(1 / 2 * mu * calculate_vel(orbits[m].xv, orbits[n].xv) ** 2 \
+                                            + calculate_pot(orbits[m].xv, orbits[n].xv, clusters[m].Mb, clusters[n].Mb))
+    if len(np.where(energy_matrix < 0)[0]) != 0:
+        delete_list = np.array([])
+        energy_matrix_flat = energy_matrix.flatten()
+        for m in np.unique(energy_matrix_flat[np.where(energy_matrix_flat < 0)]):
+            skill1, skill2 = np.where(energy_matrix == m)
+            if skill1[0] in delete_list or skill1[1] in delete_list:
+                pass
+            else:
+                print(np.where(energy_matrix == m), m, t)
+                merger_time[-1].append(t)
+                delete_list = np.append(delete_list, skill1)
+                delete_list = delete_list.astype(np.int64)
+                new_mass = clusters[skill1[0]].Mb + clusters[skill1[1]].Mb
+                new_lhalf = calculate_rhalf(clusters[skill1[0]].rhohalf, clusters[skill1[1]].rhohalf,
+                                            clusters[skill1[0]].Mb, clusters[skill1[1]].Mb)
+                orbits.append(orbit(newxv(orbits[skill1[0]].xv, orbits[skill1[1]].xv,
+                                          mass[-1][skill1[0]], mass[-1][skill1[1]])))
+                merger_r[-1].append(np.sqrt(orbits[-1].xv[0] ** 2 + orbits[-1].xv[2] ** 2))
+                merger_mass[-1].append(new_mass)
+                clusters.append(pr.EFF(new_mass, new_lhalf / (np.sqrt(2. ** (2. / (2 * eta - 3.)) - 1.)), eta))
+                m0=np.append(m0,new_mass)
+        orbits = list(np.delete(orbits, delete_list))
+        clusters = list(np.delete(clusters, delete_list))
+        m0=np.delete(m0,delete_list)
+    """
     radius.append(np.array([o.xv for o in orbits]).T[0])
     mass.append(np.array([GC.Mh for GC in clusters]))
     HalfMassRadius.append(np.array([GC.rhalf for GC in clusters]))
 
-if merger:
-    #record the final state of GCs after mergers
-    final_mass.append(mass[-1])
-    final_radius.append(radius[-1])
-    final_rh.append(HalfMassRadius[-1])
+final_mass.append(mass[-1])
+final_radius.append(radius[-1])
+final_rh.append(HalfMassRadius[-1])
+
+final_mass=np.array(final_mass).flatten()
+final_radius=np.array(final_radius).flatten()
+
+# ---record
+
+
+radius = np.array(radius)
+mass = np.array(mass)
+HalfMassRadius = np.array(HalfMassRadius)
 
 t2 = time.time()
 print('    time = %.4f sec' % (t2 - t1))
 
-
-# ---plot the results for three quantities compared with observational data
 size_scatter = 10
 alpha_scatter = 0.7
 capsize = 5
@@ -372,7 +391,7 @@ for i in range(3):
             ax[i][j].tick_params('x', direction='in', top='on', right='on', length=10,
                                  width=1, which='major', labelsize=18)
             ax[i][j].tick_params('x', direction='in', top='on', right='on', length=5,
-                                 width=1, which='minor', labelsize=18)
+                                     width=1, which='minor', labelsize=18)
             ax[i][j].set_yticks([])
         else:
             ax[i][j].set_xscale('log')
@@ -383,22 +402,31 @@ for i in range(3):
                                  width=1, which='minor', labelsize=18)
 
 ax[0][0].set_ylabel(" ")
+# ax[0][0].set_xlabel("$m$ [$M_\odot$]",fontsize=18)
+# ax[0][0].set_title("Density of $m$",fontsize=18)
 ax[0][0].set_xticklabels([])
 ax[0][0].set_yticklabels([])
 # ax[0][0].set_ylim(0.05, 5)
 ax[0][0].set_xlim(7e4, 2e6)
 
 ax[1][1].set_ylabel(" ")
+# ax[1][1].set_title("Density of $l_{1/2}$",fontsize=18)
+# ax[1][1].set_xlabel("$l_{1/2}$ [kpc]",fontsize=18)
 ax[1][1].set_xticklabels([])
 ax[1][1].set_yticklabels([])
+# ax[1][1].set_ylim(0.05, 5)
 ax[1][1].set_xlim(1e-3, 1e-1)
 
 ax[2][2].set_ylabel(" ")
+# ax[2][2].set_title("Density of $r$",fontsize=18)
 ax[2][2].set_xlabel("$R$ [kpc]", fontsize=18)
+# ax[2][2].set_xticklabels([])
 ax[2][2].set_yticklabels([])
+# ax[2][2].set_ylim(0.05, 10)
 ax[2][2].set_xlim(0.1, 10)
 
 ax[1][0].set_ylabel(r"$l_{1/2}$ [kpc]", fontsize=18)
+# ax[1][0].set_xlabel("$m$ [$M_\odot$]",fontsize=18)
 ax[1][0].set_xticklabels([])
 ax[1][0].set_ylim(1e-3, 1e-1)
 ax[1][0].set_xlim(7e4, 2e6)
@@ -408,6 +436,7 @@ ax[2][0].set_xlabel("$m$ [$M_\odot$]", fontsize=18)
 ax[2][0].set_ylim(0.1, 10)
 ax[2][0].set_xlim(7e4, 2e6)
 
+# ax[2][1].set_ylabel("$r$ [kpc]",fontsize=18)
 ax[2][1].set_yticklabels([])
 ax[2][1].set_xlabel(r"$l_{1/2}$ [kpc]", fontsize=18)
 ax[2][1].set_ylim(0.1, 10)
